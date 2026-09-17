@@ -39,7 +39,7 @@ def save_trained_models(lr_model, dt_model, rf_model, xgb_model, nn_model):
     joblib.dump(dt_model, MODELS_DIR / "decision_tree.pkl")
     joblib.dump(rf_model, MODELS_DIR / "random_forest.pkl")
     joblib.dump(xgb_model, MODELS_DIR / "xgboost.pkl")
-    joblib.dump(nn_model, MODELS_DIR / "neural_network.keras")
+    nn_model.save(MODELS_DIR / "neural_network.keras")
 
 
 def main():
