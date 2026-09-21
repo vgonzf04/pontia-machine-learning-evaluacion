@@ -3,6 +3,8 @@ from tensorflow import keras
 from data_loader import preprocessed_for_sklearn_prediction, preprocessed_for_nn_prediction
 import pandas as pd
 from pathlib import Path
+import json
+
 
 # threshold para marcar a partir de que prob es 0 o 1
 NN_THRESHOLD = 0.4 # move it to config.py
@@ -60,6 +62,7 @@ def main():
     else:
         # caso de red neuronal
         y_pred = neural_network_model_predict()
+        print(y_pred)
 
 
     # print para ver predicciones 
