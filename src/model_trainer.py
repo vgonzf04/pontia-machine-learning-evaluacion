@@ -1,4 +1,4 @@
- from models import create_logistic_regression_model, create_decision_tree_model, create_random_forest_model, create_xgboost_model, create_neural_network_model
+from models import create_logistic_regression_model, create_decision_tree_model, create_random_forest_model, create_xgboost_model, create_neural_network_model
 from tensorflow.keras.callbacks import EarlyStopping
 from pathlib import Path
 import joblib

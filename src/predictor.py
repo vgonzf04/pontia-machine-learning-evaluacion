@@ -1,6 +1,6 @@
 import joblib
 from tensorflow import keras
-from data_loader import preprocessed_sklearn, preprocessed_for_prediction_nn
+from data_loader import preprocessed_for_sklearn_prediction, preprocessed_for_nn_prediction
 import pandas as pd
 from pathlib import Path
 
@@ -14,9 +14,9 @@ METADATA_PATH = Path("models/best_model_metadata.json")
 DATA_PATH = Path("data/raw/data_predict.csv")
 
 
-def sklearn_model_predict(df_predict:DataFrame):
+def sklearn_model_predict():
     # preprocesamiento de datos para modelos clasicos
-    X_preprocessed_sklearn = preprocessed_sklearn(df_predict)
+    X_preprocessed_sklearn = preprocessed_for_sklearn_prediction()
 
     # cargamos el modelo
     best_model = joblib.load(MODELS_DIR / "best_model.pkl")
@@ -27,9 +27,9 @@ def sklearn_model_predict(df_predict:DataFrame):
     # devolvemos predicciones
     return y_pred
 
-def neural_network_model_predict(df_predict:DataFrame):
+def neural_network_model_predict():
     # preprocesamiento de datos para red neuronal
-    X_preprocessed_nn = preprocessed_for_prediction_nn(df_predict)
+    X_preprocessed_nn = preprocessed_for_nn_prediction()
 
     # cargamos el modelo de red neuronal
     best_model = keras.models.load_model(MODELS_DIR / "best_model.keras")
@@ -44,9 +44,7 @@ def neural_network_model_predict(df_predict:DataFrame):
 
 
 def main():
-    # cargar datos para predictor
-    df_predict = pd.read(DATA_PATH)
-
+    
     # cargamos info del mejor modelo
     with open(METADATA_PATH, "r") as file:
         metadata = json.load(file)
@@ -57,11 +55,11 @@ def main():
     # comparamos si mejor modelo es tipo clasico o red neuronal
     if best_model_type == "sklearn":
         # caso de modelo clasico
-        y_pred = sklearn_model_predict(df_predict)
+        y_pred = sklearn_model_predict()
 
     else:
         # caso de red neuronal
-        y_pred = neural_network_model_predict(df_predict)
+        y_pred = neural_network_model_predict()
 
 
     # print para ver predicciones 
