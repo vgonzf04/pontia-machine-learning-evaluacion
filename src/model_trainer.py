@@ -1,13 +1,16 @@
- from models import create_logistic_regression_model, create_decision_tree_model, create_random_forest_model, create_xgboost_model, create_neural_network_model
+from models import create_logistic_regression_model, create_decision_tree_model, create_random_forest_model, create_xgboost_model, create_neural_network_model
 from tensorflow.keras.callbacks import EarlyStopping
 from pathlib import Path
 import joblib
 from data_loader import get_preprocessed_data, get_preprocessed_data_for_nn
 from evaluator import evaluate_sklearn_model, evaluate_nn_model
+import json
 
 # rutas para guardar modelos
 MODELS_DIR = Path("models/tests")
 BEST_MODEL_DIR = Path("models")
+# ruta para guardar info del mejor modelo
+METADATA_PATH = Path("models/best_model_metadata.json")
 
 # funcion para crear (desde models.py) y entrenar modelos clasicos, reciben X_train preprocesado e y_train
 def create_train_sklearn_models(X_train_preprocessed, y_train):
@@ -108,17 +111,37 @@ def main():
     best_model_name = compare_models(results)
     # sacamos mejor modelo con diccionario
     best_model = trained_models[best_model_name]
-
     
     # ruta de mejor modelo 
     BEST_MODEL_DIR.mkdir(parents=True, exist_ok=True)
     # vemos que tipo de modelo es para guardado
-    if(best_model_name == "neural_network"):
+    if best_model_name == "neural_network":
         # caso de red neuronal
         nn_model.save(BEST_MODEL_DIR / "best_model.keras")
+
+        # info mejor modelo
+        metadata = {
+            "best_model_name": best_model_name,
+            "best_model_type": "keras"
+        }
+
+        # guardar info mejor modelo 
+        with open(METADATA_PATH, "w") as file:
+            json.dump(metadata, file, indent=4)
+
     else:
         # caso de modelo clasico
         joblib.dump(best_model, BEST_MODEL_DIR / "best_model.pkl")
+
+        # info mejor modelo
+        metadata = {
+            "best_model_name": best_model_name,
+            "best_model_type": "sklearn"
+        }
+
+        # guardar info mejor modelo 
+        with open(METADATA_PATH, "w") as file:
+            json.dump(metadata, file, indent=4)
 
 if __name__ == "__main__":
     main()
