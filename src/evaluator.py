@@ -1,8 +1,10 @@
 """Evaluacion comun para modelos de clasificacion binaria."""
 
+from collections.abc import Collection, Mapping
 from typing import Any
 
 import numpy as np
+import pandas as pd
 from sklearn.metrics import (
     ConfusionMatrixDisplay,
     RocCurveDisplay,
@@ -11,10 +13,18 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     roc_auc_score,
+    roc_curve,
 )
 
 
 DEFAULT_NN_THRESHOLD = 0.4
+METRIC_LABELS = {
+    "accuracy": "Accuracy",
+    "precision": "Precision",
+    "recall": "Recall",
+    "f1": "F1",
+    "roc_auc": "ROC-AUC",
+}
 
 
 def _to_one_dimension(values: Any, value_name: str) -> np.ndarray:
@@ -263,3 +273,177 @@ def plot_roc_curve(
     figure.tight_layout()
 
     return display
+
+
+def _validate_model_results(
+    results: Mapping[str, Mapping[str, Any]],
+) -> dict[str, dict[str, float]]:
+    """Valida y normaliza las metricas utilizadas en la comparacion."""
+    if not isinstance(results, Mapping) or not results:
+        raise ValueError("results debe contener al menos un modelo.")
+
+    normalized_results: dict[str, dict[str, float]] = {}
+
+    for model_name, metrics in results.items():
+        if not isinstance(model_name, str) or not model_name.strip():
+            raise ValueError("Cada modelo debe tener un nombre no vacio.")
+        if not isinstance(metrics, Mapping):
+            raise TypeError(
+                f"Las metricas de {model_name} deben estar en un diccionario."
+            )
+
+        missing_metrics = set(METRIC_LABELS).difference(metrics)
+        if missing_metrics:
+            missing_names = ", ".join(sorted(missing_metrics))
+            raise ValueError(
+                f"Faltan metricas para {model_name}: {missing_names}."
+            )
+
+        normalized_metrics: dict[str, float] = {}
+        for metric_name in METRIC_LABELS:
+            metric_value = metrics[metric_name]
+            if isinstance(metric_value, (bool, np.bool_)):
+                raise TypeError(
+                    f"La metrica {metric_name} de {model_name} debe ser numerica."
+                )
+            try:
+                numeric_value = float(metric_value)
+            except (TypeError, ValueError) as error:
+                raise TypeError(
+                    f"La metrica {metric_name} de {model_name} debe ser numerica."
+                ) from error
+
+            if not np.isfinite(numeric_value) or not 0 <= numeric_value <= 1:
+                raise ValueError(
+                    f"La metrica {metric_name} de {model_name} debe estar entre 0 y 1."
+                )
+            normalized_metrics[metric_name] = numeric_value
+
+        normalized_results[model_name] = normalized_metrics
+
+    return normalized_results
+
+
+def create_model_comparison_table(
+    results: Mapping[str, Mapping[str, Any]],
+) -> pd.DataFrame:
+    """Crea una tabla comparable sin redondear las metricas originales."""
+    normalized_results = _validate_model_results(results)
+    rows = []
+
+    for model_name, metrics in normalized_results.items():
+        row: dict[str, Any] = {"Modelo": model_name}
+        row.update(
+            {
+                display_name: metrics[metric_name]
+                for metric_name, display_name in METRIC_LABELS.items()
+            }
+        )
+        rows.append(row)
+
+    return pd.DataFrame(rows, columns=["Modelo", *METRIC_LABELS.values()])
+
+
+def plot_comparative_roc_curve(
+    y_true: Any,
+    scores_by_model: Mapping[str, Any],
+) -> tuple[Any, Any, dict[str, float]]:
+    """Dibuja las curvas ROC disponibles sobre los mismos ejes."""
+    from matplotlib import pyplot as plt
+
+    y_true_array = _to_one_dimension(y_true, "y_true")
+    _validate_binary_target(y_true_array)
+
+    if not isinstance(scores_by_model, Mapping) or not scores_by_model:
+        raise ValueError("scores_by_model debe contener al menos un modelo.")
+
+    figure, axis = plt.subplots(figsize=(8, 6))
+    auc_by_model: dict[str, float] = {}
+
+    for model_name, scores in scores_by_model.items():
+        if not isinstance(model_name, str) or not model_name.strip():
+            raise ValueError("Cada modelo debe tener un nombre no vacio.")
+
+        score_array = _to_one_dimension(scores, f"scores de {model_name}")
+        _validate_same_length(y_true_array, score_array)
+
+        try:
+            score_array = score_array.astype(float)
+        except (TypeError, ValueError) as error:
+            raise TypeError(
+                f"Los scores de {model_name} deben ser numericos."
+            ) from error
+        if not np.all(np.isfinite(score_array)):
+            raise ValueError(f"Los scores de {model_name} deben ser finitos.")
+
+        false_positive_rate, true_positive_rate, _ = roc_curve(
+            y_true_array,
+            score_array,
+        )
+        model_auc = float(roc_auc_score(y_true_array, score_array))
+        auc_by_model[model_name] = model_auc
+        axis.plot(
+            false_positive_rate,
+            true_positive_rate,
+            label=f"{model_name} (AUC = {model_auc:.3f})",
+        )
+
+    axis.plot(
+        [0, 1],
+        [0, 1],
+        linestyle="--",
+        color="grey",
+        label="Clasificador aleatorio",
+    )
+    axis.set(
+        title="Comparacion de curvas ROC",
+        xlabel="Tasa de falsos positivos",
+        ylabel="Tasa de verdaderos positivos",
+        xlim=(0, 1),
+        ylim=(0, 1),
+    )
+    axis.legend(loc="lower right")
+    figure.tight_layout()
+
+    return figure, axis, auc_by_model
+
+
+def select_best_model(
+    results: Mapping[str, Mapping[str, Any]],
+    primary_metric: str,
+    required_models: Collection[str] | None = None,
+) -> str:
+    """Selecciona el mejor modelo por una metrica explicita y sin desempates ocultos."""
+    normalized_results = _validate_model_results(results)
+
+    if primary_metric not in METRIC_LABELS:
+        valid_metrics = ", ".join(METRIC_LABELS)
+        raise ValueError(
+            f"Metrica no valida: {primary_metric}. Opciones: {valid_metrics}."
+        )
+
+    if required_models is not None:
+        if isinstance(required_models, str):
+            raise TypeError("required_models debe ser una coleccion de nombres.")
+        missing_models = set(required_models).difference(normalized_results)
+        if missing_models:
+            missing_names = ", ".join(sorted(missing_models))
+            raise ValueError(f"Faltan modelos requeridos: {missing_names}.")
+
+    best_score = max(
+        metrics[primary_metric] for metrics in normalized_results.values()
+    )
+    winners = [
+        model_name
+        for model_name, metrics in normalized_results.items()
+        if metrics[primary_metric] == best_score
+    ]
+
+    if len(winners) > 1:
+        tied_names = ", ".join(winners)
+        raise ValueError(
+            f"Empate en {primary_metric} entre: {tied_names}. "
+            "Define un criterio de desempate."
+        )
+
+    return winners[0]

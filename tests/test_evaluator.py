@@ -10,10 +10,13 @@ from matplotlib import pyplot as plt
 
 from src.evaluator import (
     calculate_binary_classification_metrics,
+    create_model_comparison_table,
     evaluate_nn_model,
     evaluate_sklearn_model,
+    plot_comparative_roc_curve,
     plot_confusion_matrix,
     plot_roc_curve,
+    select_best_model,
 )
 
 
@@ -53,6 +56,22 @@ class EvaluatorTests(unittest.TestCase):
     def setUp(self):
         self.X_test = np.zeros((4, 2))
         self.y_test = np.array([0, 1, 1, 0])
+        self.results = {
+            "Modelo A": {
+                "accuracy": 0.95,
+                "precision": 0.75,
+                "recall": 0.70,
+                "f1": 0.72,
+                "roc_auc": 0.80,
+            },
+            "Modelo B": {
+                "accuracy": 0.85,
+                "precision": 0.90,
+                "recall": 0.88,
+                "f1": 0.89,
+                "roc_auc": 0.92,
+            },
+        }
 
     def tearDown(self):
         plt.close("all")
@@ -177,6 +196,89 @@ class EvaluatorTests(unittest.TestCase):
                 np.array([0.1, 0.9]),
                 "Modelo de prueba",
             )
+
+    def test_comparison_table_preserves_models_columns_and_values(self):
+        table = create_model_comparison_table(self.results)
+
+        self.assertEqual(
+            list(table.columns),
+            ["Modelo", "Accuracy", "Precision", "Recall", "F1", "ROC-AUC"],
+        )
+        self.assertEqual(list(table["Modelo"]), ["Modelo A", "Modelo B"])
+        self.assertEqual(table.loc[0, "Accuracy"], 0.95)
+        self.assertEqual(table.loc[1, "ROC-AUC"], 0.92)
+
+    def test_comparison_rejects_missing_and_out_of_range_metrics(self):
+        incomplete_results = {"Modelo A": {"accuracy": 0.8}}
+        with self.assertRaisesRegex(ValueError, "Faltan metricas"):
+            create_model_comparison_table(incomplete_results)
+
+        invalid_results = {
+            "Modelo A": {
+                "accuracy": 1.1,
+                "precision": 0.8,
+                "recall": 0.8,
+                "f1": 0.8,
+                "roc_auc": 0.8,
+            }
+        }
+        with self.assertRaisesRegex(ValueError, "entre 0 y 1"):
+            create_model_comparison_table(invalid_results)
+
+    def test_comparative_roc_contains_each_model_auc_and_baseline(self):
+        figure, axis, auc_by_model = plot_comparative_roc_curve(
+            self.y_test,
+            {
+                "Modelo A": np.array([0.1, 0.9, 0.8, 0.2]),
+                "Modelo B": np.array([0.2, 0.7, 0.6, 0.3]),
+            },
+        )
+
+        self.assertIs(axis.figure, figure)
+        self.assertEqual(auc_by_model, {"Modelo A": 1.0, "Modelo B": 1.0})
+        self.assertEqual(len(axis.lines), 3)
+        self.assertIn("Modelo A (AUC = 1.000)", axis.get_legend_handles_labels()[1])
+        baseline = axis.lines[-1]
+        np.testing.assert_array_equal(baseline.get_xdata(), [0, 1])
+        np.testing.assert_array_equal(baseline.get_ydata(), [0, 1])
+
+    def test_comparative_roc_rejects_different_lengths(self):
+        with self.assertRaisesRegex(ValueError, "misma longitud"):
+            plot_comparative_roc_curve(
+                self.y_test,
+                {"Modelo A": np.array([0.1, 0.9])},
+            )
+
+    def test_model_selection_uses_configured_metric(self):
+        self.assertEqual(
+            select_best_model(self.results, "accuracy"),
+            "Modelo A",
+        )
+        self.assertEqual(
+            select_best_model(self.results, "f1"),
+            "Modelo B",
+        )
+
+    def test_model_selection_rejects_invalid_metric(self):
+        with self.assertRaisesRegex(ValueError, "Metrica no valida"):
+            select_best_model(self.results, "loss")
+
+    def test_model_selection_checks_required_models(self):
+        with self.assertRaisesRegex(ValueError, "Faltan modelos requeridos"):
+            select_best_model(
+                self.results,
+                "f1",
+                required_models=["Modelo A", "Modelo B", "Modelo C"],
+            )
+
+    def test_model_selection_rejects_ties(self):
+        tied_results = {
+            model_name: {**metrics, "f1": 0.9}
+            for model_name, metrics in self.results.items()
+        }
+
+        with self.assertRaisesRegex(ValueError, "Empate en f1"):
+            select_best_model(tied_results, "f1")
 
 
 if __name__ == "__main__":
