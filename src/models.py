@@ -1,3 +1,4 @@
+from sklearn.ensemble import RandomForestClassifier
 from tensorflow.keras import layers, models
 
 def create_logistic_regression_model():
@@ -7,7 +8,12 @@ def create_decision_tree_model():
     return ;
     
 def create_random_forest_model():
-    return ;
+    """Crea un Random Forest base, reproducible y sin balanceo artificial."""
+    return RandomForestClassifier(
+        n_estimators=100,
+        random_state=42,
+        n_jobs=-1,
+    )
 
 def create_xgboost_model():
     return ;
