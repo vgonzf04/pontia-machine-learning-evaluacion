@@ -4,6 +4,8 @@ from typing import Any
 
 import numpy as np
 from sklearn.metrics import (
+    ConfusionMatrixDisplay,
+    RocCurveDisplay,
     accuracy_score,
     f1_score,
     precision_score,
@@ -31,17 +33,26 @@ def _validate_binary_classification_data(
     y_score: np.ndarray,
 ) -> None:
     """Comprueba formas y valores necesarios para evaluar el problema."""
-    if not (len(y_true) == len(y_pred) == len(y_score)):
-        raise ValueError(
-            "y_true, y_pred e y_score deben tener la misma longitud."
-        )
+    _validate_same_length(y_true, y_pred, y_score)
+    _validate_binary_target(y_true)
+    _validate_binary_predictions(y_pred)
 
-    true_classes = set(np.unique(y_true))
-    if true_classes != {0, 1}:
+
+def _validate_same_length(*arrays: np.ndarray) -> None:
+    """Comprueba que todos los vectores contienen las mismas muestras."""
+    if len({len(array) for array in arrays}) != 1:
+        raise ValueError("Los vectores deben tener la misma longitud.")
+
+
+def _validate_binary_target(y_true: np.ndarray) -> None:
+    """Comprueba que el target incluye las dos clases del problema."""
+    if set(np.unique(y_true)) != {0, 1}:
         raise ValueError("y_true debe contener las clases binarias 0 y 1.")
 
-    predicted_classes = set(np.unique(y_pred))
-    if not predicted_classes.issubset({0, 1}):
+
+def _validate_binary_predictions(y_pred: np.ndarray) -> None:
+    """Comprueba que las predicciones solo contienen clases binarias."""
+    if not set(np.unique(y_pred)).issubset({0, 1}):
         raise ValueError("y_pred solo puede contener las clases 0 y 1.")
 
 
@@ -177,3 +188,78 @@ def evaluate_nn_model(
     y_pred = (y_score > threshold).astype(int)
 
     return calculate_binary_classification_metrics(y_test, y_pred, y_score)
+
+
+def plot_confusion_matrix(
+    y_true: Any,
+    y_pred: Any,
+    model_name: str,
+) -> ConfusionMatrixDisplay:
+    """Crea la matriz de confusion individual de un modelo binario."""
+    from matplotlib import pyplot as plt
+
+    y_true_array = _to_one_dimension(y_true, "y_true")
+    y_pred_array = _to_one_dimension(y_pred, "y_pred")
+
+    _validate_same_length(y_true_array, y_pred_array)
+    _validate_binary_target(y_true_array)
+    _validate_binary_predictions(y_pred_array)
+
+    figure, axis = plt.subplots(figsize=(6, 5))
+    display = ConfusionMatrixDisplay.from_predictions(
+        y_true_array,
+        y_pred_array,
+        labels=[0, 1],
+        display_labels=["No cancelada (0)", "Cancelada (1)"],
+        cmap="Blues",
+        colorbar=False,
+        values_format="d",
+        ax=axis,
+    )
+    axis.set(
+        title=f"Matriz de confusión - {model_name}",
+        xlabel="Clase predicha",
+        ylabel="Clase real",
+    )
+    figure.tight_layout()
+
+    return display
+
+
+def plot_roc_curve(
+    y_true: Any,
+    y_score: Any,
+    model_name: str,
+) -> RocCurveDisplay:
+    """Crea la curva ROC individual usando scores de la clase positiva."""
+    from matplotlib import pyplot as plt
+
+    y_true_array = _to_one_dimension(y_true, "y_true")
+    y_score_array = _to_one_dimension(y_score, "y_score")
+
+    _validate_same_length(y_true_array, y_score_array)
+    _validate_binary_target(y_true_array)
+
+    figure, axis = plt.subplots(figsize=(7, 5))
+    display = RocCurveDisplay.from_predictions(
+        y_true_array,
+        y_score_array,
+        name=model_name,
+        ax=axis,
+    )
+    axis.plot(
+        [0, 1],
+        [0, 1],
+        linestyle="--",
+        color="grey",
+        label="Clasificador aleatorio",
+    )
+    axis.set(
+        title=f"Curva ROC - {model_name}",
+        xlabel="Tasa de falsos positivos",
+        ylabel="Tasa de verdaderos positivos",
+    )
+    axis.legend(loc="lower right")
+    figure.tight_layout()
+
+    return display
