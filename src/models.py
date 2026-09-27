@@ -1,5 +1,6 @@
 from sklearn.ensemble import RandomForestClassifier
 from tensorflow.keras import layers, models
+from xgboost import XGBClassifier
 
 def create_logistic_regression_model():
     return ;
@@ -16,7 +17,16 @@ def create_random_forest_model():
     )
 
 def create_xgboost_model():
-    return ;
+    """Crea un XGBoost base y reproducible para clasificacion binaria."""
+    return XGBClassifier(
+        objective="binary:logistic",
+        eval_metric="logloss",
+        n_estimators=100,
+        learning_rate=0.1,
+        max_depth=6,
+        random_state=42,
+        n_jobs=-1,
+    )
 
 
 def create_neural_network_model(X_train_preprocessed):
