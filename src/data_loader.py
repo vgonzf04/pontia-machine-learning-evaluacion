@@ -27,10 +27,16 @@ def preprocessed_for_sklearn_prediction():
     # eliminamos columnas que no aportan nada
     # company en la mayoria de sus casos tiene valores nulos y ademas es un id de la compañia lo cual no aporta info relevante
     # reservation_status y reservation_status_code puede contener la info que tienen que predecir los modelos 
-    X_preprocessed = df.drop(columns=["company", "reservation_status", "reservation_status_date"])
+    X = df.drop(columns=["company", "reservation_status", "reservation_status_date"])
+
+    # cargamos el imputer
+    imputer = joblib.load(MODELS_DIR / "imputer.pkl")
+
+    # SOLO imputamos X con inputer entrenado
+    X_imputed = imputer.transform(X)
 
     # devolvemos X preprocesado para la prediccion con modelos scikit-learn
-    return X_preprocessed
+    return X_imputed
 
 def preprocessed_for_nn_prediction():
     # cargar datos para predictor
@@ -41,11 +47,17 @@ def preprocessed_for_nn_prediction():
     # reservation_status y reservation_status_code puede contener la info que tienen que predecir los modelos 
     X = df.drop(columns=["company", "reservation_status", "reservation_status_date"])
 
+    # cargamos el imputer
+    imputer = joblib.load(MODELS_DIR / "imputer.pkl")
+
     # cargamos el preprocesador
     preprocessor = joblib.load(MODELS_DIR / "preprocessor_nn.pkl")
 
-    # SOLO transformamos X con el preprocesador ya entrenado, recibido como parametro
-    X_preprocessed = preprocessor.transform(X)
+    # SOLO imputamos X con inputer entrenado
+    X_imputed = imputer.transform(X)
+
+    # SOLO transformamos X con el preprocesador ya entrenado
+    X_preprocessed = preprocessor.transform(X_imputed)
 
     # devolvemos X preprocesado para la prediccion con una red neuronal
     return X_preprocessed
@@ -86,6 +98,28 @@ def get_preprocessed_data():
     # reservation_status y reservation_status_code puede contener la info que tienen que predecir los modelos 
     df = df.drop(columns=["company", "reservation_status", "reservation_status_date"])
 
+    # guardamos columnas categoricas y numericas por separado
+    categorical_columns = ["hotel", "arrival_date_month", "meal", "country", "market_segment", "distribution_channel", "reserved_room_type", "assigned_room_type", "deposit_type", "customer_type"]
+    numerical_columns = ["lead_time", "arrival_date_year", "arrival_date_week_number", "arrival_date_day_of_month", "stays_in_weekend_nights", "stays_in_week_nights", "adults", "children", "babies", "is_repeated_guest", "previous_cancellations", "previous_bookings_not_canceled", "booking_changes", "agent", "days_in_waiting_list", "adr", "required_car_parking_spaces", "total_of_special_requests"]
+    
+    # creamos imputer para columnas numericas
+    numerical_imputer = Pipeline(steps=[
+        # imputer para sustituir los valores nulos por la mediana
+        ("imputer", SimpleImputer(strategy="median"))
+    ])
+
+    # creamos imputer para columnas categoricas
+    categorical_imputer = Pipeline(steps=[
+        # imputer para sustituir los valores nulos por el valor mas frecuente
+        ("imputer", SimpleImputer(strategy="most_frequent"))
+    ])
+
+    # creamos imputer para aplicar los imputers sobre el dataset
+    imputer = ColumnTransformer(transformers=[
+        ("num", numerical_imputer, numerical_columns),
+        ("cat", categorical_imputer, categorical_columns)
+    ])
+
     # division del DataFrame en:
     # variables independientes
     X = df.drop(columns=["is_canceled"])
@@ -95,13 +129,21 @@ def get_preprocessed_data():
     # separamos X e y en conjunto de entrenamiento (80%) y conunto de test (20%) semilla random habitual y mantenemos proporcion de clases con stratify
     X_train_preprocessed, X_test_preprocessed, y_train, y_test = train_test_split(X, y, test_size=.2, random_state=42, stratify=y)
 
+    # entrenamos imputer y transformamos conjunto X de entrenamiento
+    X_train_preprocessed_imputed = imputer.fit_transform(X_train_preprocessed)
+    # SOLO transformamos el conjunto de test, pero no entrenamos el imputer
+    X_test_preprocessed_imputed = imputer.transform(X_test_preprocessed)
+
+    # guardamos el imputer en disco para mantener su entrenamiento 
+    joblib.dump(imputer, MODELS_DIR / "imputer.pkl")
+
     # añadimos target y split al conjunto de entrenamiento
-    train_df = X_train_preprocessed.copy()
+    train_df = X_train_preprocessed_imputed.copy()
     train_df["is_canceled"] = y_train
     train_df["split"] = "train"
 
     # añadimos target y split al conjunto de test
-    test_df = X_test_preprocessed.copy()
+    test_df = X_test_preprocessed_imputed.copy()
     test_df["is_canceled"] = y_test
     test_df["split"] = "test"
 
@@ -116,7 +158,7 @@ def get_preprocessed_data():
     sklearn_df.to_csv(DATA_PROCESSED_PATH, index=False)
 
     # devolvemos conjunto de entrenamiento y test
-    return X_train_preprocessed, X_test_preprocessed, y_train, y_test
+    return X_train_preprocessed_imputed, X_test_preprocessed_imputed, y_train, y_test
 
 # preprocesamos dataset para train y test de red neuronal
 def get_preprocessed_data_for_nn():
@@ -130,16 +172,12 @@ def get_preprocessed_data_for_nn():
     
     # creamos transformador de columnas numericas
     numerical_transformer = Pipeline(steps=[
-        # imputer para sustituir los valores nulos por la mediana
-        ("imputer", SimpleImputer(strategy="median")),
         # scaler para tener misma escala en todos los valores, media =0 y desviacion tipica =1
         ("scaler", StandardScaler())
     ])
 
     # creamos transformador de columnas categoricas
     categorical_transformer = Pipeline(steps=[
-        # # imputer para sustituir los valores nulos por el valor mas frecuente
-        ("imputer", SimpleImputer(strategy="most_frequent")),
         # encoder para convertir categoricas en numericas
         ("encoder", OneHotEncoder(handle_unknown="ignore"))
     ])
