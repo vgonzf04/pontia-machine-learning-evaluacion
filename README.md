@@ -82,8 +82,10 @@ Es el script principal del proceso de entrenamiento:
 - Carga datos preprocesados desde `data_loader.py`.
 - Entrena cada modelo con los mismos datos. 
 - Guarda los modelos entrenados en `models/tests`.
-- Evalua cada modelo con el mismo conjunto de test y guarda los resultados en un diccionario.
-- Compara los resultados desde `evaluator.py` que devuelve el nombre del mejor modelo.
+- Evalúa cada modelo con las funciones comunes de `evaluator.py` y guarda los
+  resultados en un diccionario.
+- Mantiene una selección provisional por F1 pendiente de integrar con la
+  selección configurable y los resultados definitivos de todos los modelos.
 - Guarda el mejor modelo en `models` bajo el nombre de `best_model`.
 - Guarda nombre y tipo del mejor modelo con el nombre de `metadata`.
 
@@ -111,8 +113,21 @@ Una vez realizado el preprocesado general, se guarda el dataset para poder reuti
 
 Para preprocesar los datos para el modelo de red neuronal, se utiliza un preprocesador llamado `preprocessor` que sustituye los valores nulos, escala los valores numéricos y codifica los valores categóricos. Este preprocesador se guarda por si sale la red neuronal como mejor modelo, dado que los datos que se utilicen para la predicción han de pasar por el mismo preprocesador que los datos de entrenamiento.
 
-### 5. `evaluator.py` (TO DO)
+### 5. `evaluator.py`
 
+Calcula las métricas comunes de clasificación binaria, genera matrices de
+confusión y curvas ROC, construye la comparación entre modelos y permite
+seleccionar el mejor modelo mediante una métrica configurable.
+
+### 6. `feature_importance.py`
+
+Asocia las importancias de un modelo de árboles con los nombres de las
+variables transformadas y permite crear una tabla ordenada y una gráfica con
+las variables más importantes.
+
+La explicación detallada de Random Forest, XGBoost, la comparación común y
+feature importance está disponible en
+[Documentación de modelos ensemble](docs/ensemble_models.md).
 
 ## ANÁLSIS EXPLORATORIO DE DATOS (EDA)
 
@@ -130,8 +145,14 @@ El análisis del dataset desembocó en la eliminación de las siguientes columna
 
 ### MÉTRICA DE SELECCIÓN DEL MEJOR MODELO
 
-El criterio principal utilizado para seleccionar el mejor modelo es el **F1-score de la clase positiva (`is_canceled = 1`)**.
+El flujo actual de `model_trainer.py` utiliza provisionalmente el **F1-score de
+la clase positiva (`is_canceled = 1`)**. La utilidad de selección implementada
+permite configurar `accuracy`, `precision`, `recall`, `f1` o `roc_auc`.
 
 Esta métrica combina precision y recall, permitiendo evaluar tanto la capacidad del modelo para detectar correctamente las cancelaciones como la cantidad de falsos positivos generados. Se considera más adecuada que la accuracy, ya que proporciona una evaluación más equilibrada cuando las clases no tienen exactamente la misma distribución.
 
 Como métricas complementarias se analizan también accuracy, precision, recall y ROC-AUC para obtener una visión más completa del comportamiento de cada modelo.
+
+La métrica principal y el modelo ganador solo se considerarán definitivos
+cuando estén disponibles todos los modelos, el preprocesamiento común y sus
+resultados sobre el mismo conjunto de test.
