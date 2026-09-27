@@ -20,7 +20,7 @@ DATA_PROCESSED_PATH = Path("data/processed/dataset_preprocessed.csv")
 MODELS_DIR = Path("models/tests")
 
 
-def preprocessed_for_sklearn_prediction():
+def preprocessed_for_tree_prediction():
     # cargar datos para predictor
     df = pd.read_csv(DATA_PREDICT_PATH)
 
@@ -29,16 +29,16 @@ def preprocessed_for_sklearn_prediction():
     # reservation_status y reservation_status_code puede contener la info que tienen que predecir los modelos 
     X = df.drop(columns=["company", "reservation_status", "reservation_status_date"])
 
-    # cargamos el imputer
-    imputer = joblib.load(MODELS_DIR / "imputer.pkl")
+    # cargamos el transformer
+    tree_preprocessor = joblib.load(MODELS_DIR / "tree_preprocessor.pkl")
 
-    # SOLO imputamos X con inputer entrenado
-    X_imputed = imputer.transform(X)
+    # SOLO transformamos X con transformer entrenado
+    X_preprocessed = tree_preprocessor.transform(X)
 
     # devolvemos X preprocesado para la prediccion con modelos scikit-learn
-    return X_imputed
+    return X_preprocessed
 
-def preprocessed_for_nn_prediction():
+def preprocessed_and_scaled_for_prediction():
     # cargar datos para predictor
     df = pd.read_csv(DATA_PREDICT_PATH)
 
@@ -47,20 +47,14 @@ def preprocessed_for_nn_prediction():
     # reservation_status y reservation_status_code puede contener la info que tienen que predecir los modelos 
     X = df.drop(columns=["company", "reservation_status", "reservation_status_date"])
 
-    # cargamos el imputer
-    imputer = joblib.load(MODELS_DIR / "imputer.pkl")
+    # cargamos el transformer
+    scaled_preprocessor = joblib.load(MODELS_DIR / "scaled_preprocessor.pkl")
 
-    # cargamos el preprocesador
-    preprocessor = joblib.load(MODELS_DIR / "preprocessor_nn.pkl")
-
-    # SOLO imputamos X con inputer entrenado
-    X_imputed = imputer.transform(X)
-
-    # SOLO transformamos X con el preprocesador ya entrenado
-    X_preprocessed = preprocessor.transform(X_imputed)
+    # SOLO transformamos X con tranformer entrenado
+    X_preprocessed_scaled = scaled_preprocessor.transform(X)
 
     # devolvemos X preprocesado para la prediccion con una red neuronal
-    return X_preprocessed
+    return X_preprocessed_scaled
 
 # preprocesamos dataset
 def get_preprocessed_data():
@@ -86,8 +80,12 @@ def get_preprocessed_data():
             X_test_preprocessed = test_df.drop(columns=["is_canceled", "split"])
             y_test = test_df["is_canceled"]
 
+            # sacamos feature importance desde el transformer
+            tree_preprocessor = joblib.load(MODELS_DIR / "tree_preprocessor.pkl")
+            feature_names = tree_preprocessor.get_feature_names_out()
+
             # devolvemos onjunto de entrenamiento y test preprocesados para modelos scikit-learn
-            return X_train_preprocessed, X_test_preprocessed, y_train, y_test
+            return X_train_preprocessed, X_test_preprocessed, y_train, y_test, feature_names
 
     # caso de que no haya datos preprocesados guardados
     # leer dataset desde csv
@@ -102,22 +100,34 @@ def get_preprocessed_data():
     categorical_columns = ["hotel", "arrival_date_month", "meal", "country", "market_segment", "distribution_channel", "reserved_room_type", "assigned_room_type", "deposit_type", "customer_type"]
     numerical_columns = ["lead_time", "arrival_date_year", "arrival_date_week_number", "arrival_date_day_of_month", "stays_in_weekend_nights", "stays_in_week_nights", "adults", "children", "babies", "is_repeated_guest", "previous_cancellations", "previous_bookings_not_canceled", "booking_changes", "agent", "days_in_waiting_list", "adr", "required_car_parking_spaces", "total_of_special_requests"]
     
-    # creamos imputer para columnas numericas
-    numerical_imputer = Pipeline(steps=[
-        # imputer para sustituir los valores nulos por la mediana
+    # preprocesador para arboles
+    numerical_transformer = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="median"))
     ])
-
-    # creamos imputer para columnas categoricas
-    categorical_imputer = Pipeline(steps=[
-        # imputer para sustituir los valores nulos por el valor mas frecuente
-        ("imputer", SimpleImputer(strategy="most_frequent"))
+    categorical_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("encoder", OneHotEncoder(handle_unknown="ignore"))
+    ])
+    tree_preprocessor = ColumnTransformer(transformers=[
+        ("num", numerical_transformer, numerical_columns),
+        ("cat", categorical_transformer, categorical_columns)
     ])
 
-    # creamos imputer para aplicar los imputers sobre el dataset
-    imputer = ColumnTransformer(transformers=[
-        ("num", numerical_imputer, numerical_columns),
-        ("cat", categorical_imputer, categorical_columns)
+
+    # preprocesador para regresion logistica y red neuronal
+    numerical_scaled_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler())
+    ])
+
+    categorical_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("encoder", OneHotEncoder(handle_unknown="ignore"))
+    ])
+
+    scaled_preprocessor = ColumnTransformer(transformers=[
+        ("num", numerical_scaled_transformer, numerical_columns),
+        ("cat", categorical_transformer, categorical_columns)
     ])
 
     # division del DataFrame en:
@@ -127,23 +137,33 @@ def get_preprocessed_data():
     y = df["is_canceled"]
 
     # separamos X e y en conjunto de entrenamiento (80%) y conunto de test (20%) semilla random habitual y mantenemos proporcion de clases con stratify
-    X_train_preprocessed, X_test_preprocessed, y_train, y_test = train_test_split(X, y, test_size=.2, random_state=42, stratify=y)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=.2, random_state=42, stratify=y)
 
-    # entrenamos imputer y transformamos conjunto X de entrenamiento
-    X_train_preprocessed_imputed = imputer.fit_transform(X_train_preprocessed)
-    # SOLO transformamos el conjunto de test, pero no entrenamos el imputer
-    X_test_preprocessed_imputed = imputer.transform(X_test_preprocessed)
+    # entrenamos transformer y transformamos conjunto X de entrenamiento para arboles
+    X_train_preprocessed = tree_preprocessor.fit_transform(X_train)
+    # SOLO transformamos el conjunto de test, pero no entrenamos el transformer para arboles
+    X_test_preprocessed = tree_preprocessor.transform(X_test)
 
-    # guardamos el imputer en disco para mantener su entrenamiento 
-    joblib.dump(imputer, MODELS_DIR / "imputer.pkl")
+    # entrenamos transformer y transformamos conjunto X de entrenamiento para lr y nn
+    X_train_scaled = scaled_preprocessor.fit_transform(X_train)
+    # SOLO transformamos el conjunto de test, pero no entrenamos el transformer para lr y nn
+    X_test_scaled = scaled_preprocessor.transform(X_test)
+
+
+    # guardamos nombres
+    feature_names = tree_preprocessor.get_feature_names_out()
+
+    # guardamos transformadores en disco para mantener sus entrenamientos
+    joblib.dump(tree_preprocessor, MODELS_DIR / "tree_preprocessor.pkl")
+    joblib.dump(scaled_preprocessor, MODELS_DIR / "scaled_preprocessor.pkl")
 
     # añadimos target y split al conjunto de entrenamiento
-    train_df = X_train_preprocessed_imputed.copy()
+    train_df = X_train_preprocessed.copy()
     train_df["is_canceled"] = y_train
     train_df["split"] = "train"
 
     # añadimos target y split al conjunto de test
-    test_df = X_test_preprocessed_imputed.copy()
+    test_df = X_test_preprocessed.copy()
     test_df["is_canceled"] = y_test
     test_df["split"] = "test"
 
@@ -153,48 +173,8 @@ def get_preprocessed_data():
     # comprobamos que existe el directorio 
     DATA_PROCESSED_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-
     # guardamos csv sin indices
     sklearn_df.to_csv(DATA_PROCESSED_PATH, index=False)
 
     # devolvemos conjunto de entrenamiento y test
-    return X_train_preprocessed_imputed, X_test_preprocessed_imputed, y_train, y_test
-
-# preprocesamos dataset para train y test de red neuronal
-def get_preprocessed_data_for_nn():
-
-    # obtenemos datos preprocesados
-    X_train_preprocessed, X_test_preprocessed, y_train, y_test = get_preprocessed_data()
-
-    # guardamos columnas categoricas y numericas por separado
-    categorical_columns = ["hotel", "arrival_date_month", "meal", "country", "market_segment", "distribution_channel", "reserved_room_type", "assigned_room_type", "deposit_type", "customer_type"]
-    numerical_columns = ["lead_time", "arrival_date_year", "arrival_date_week_number", "arrival_date_day_of_month", "stays_in_weekend_nights", "stays_in_week_nights", "adults", "children", "babies", "is_repeated_guest", "previous_cancellations", "previous_bookings_not_canceled", "booking_changes", "agent", "days_in_waiting_list", "adr", "required_car_parking_spaces", "total_of_special_requests"]
-    
-    # creamos transformador de columnas numericas
-    numerical_transformer = Pipeline(steps=[
-        # scaler para tener misma escala en todos los valores, media =0 y desviacion tipica =1
-        ("scaler", StandardScaler())
-    ])
-
-    # creamos transformador de columnas categoricas
-    categorical_transformer = Pipeline(steps=[
-        # encoder para convertir categoricas en numericas
-        ("encoder", OneHotEncoder(handle_unknown="ignore"))
-    ])
-    
-    # preprocesador para aplicar cada transformador en las columnas que le corresponden
-    preprocessor = ColumnTransformer(transformers=[
-        ("num", numerical_transformer, numerical_columns),
-        ("cat", categorical_transformer, categorical_columns)
-    ])
-
-    # entrenamos preprocesador y transformamos conjunto X de entrenamiento
-    X_train_preprocessed_nn = preprocessor.fit_transform(X_train_preprocessed)
-    # SOLO transformamos el conjunto de test, pero no entrenamos el preprocesador
-    X_test_preprocessed_nn = preprocessor.transform(X_test_preprocessed)
-
-    # guardamos el preprocesador en disco para mantener su entrenamiento 
-    joblib.dump(preprocessor, MODELS_DIR / "preprocessor_nn.pkl")
-
-    # devolvemos preprocesador, conjunto de entrenamiento y test preprocesados para una red neuronal
-    return X_train_preprocessed_nn, X_test_preprocessed_nn, y_train, y_test
+    return X_train_preprocessed, X_test_preprocessed, X_train_scaled, X_test_scaled, y_train, y_test, feature_names
