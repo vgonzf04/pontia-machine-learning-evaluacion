@@ -57,6 +57,23 @@ def neural_network_model_predict():
     # devolvemos predicciones
     return y_pred_nn
 
+def print_predictions(y_pred):
+    print("\n" + "=" * 50)
+    print("         RESULTADOS DE LAS PREDICCIONES")
+    print("=" * 50)
+
+    # aplanamos por si viene con forma (n, 1), como suele ocurrir en Keras
+    predictions = y_pred.flatten()
+
+    for i, prediction in enumerate(predictions, start=1):
+        status = "CANCELADA" if prediction == 1 else "NO CANCELADA"
+
+        print(f"Reserva {i:>3} -> {status}")
+
+    print("=" * 50)
+    print(f"Total de predicciones: {len(predictions)}")
+    print("=" * 50 + "\n")
+
 
 def main():
     
@@ -71,19 +88,16 @@ def main():
     if best_model_type == "sklearn":
         # caso de modelo clasico
         y_pred = sklearn_model_predict()
-        print(y_pred)
 
     elif best_model_type == "logistic_regression":
         y_pred = lr_model_predict()
-        print(y_pred)
 
     else:
         # caso de red neuronal
         y_pred = neural_network_model_predict()
-        print(y_pred)
-
 
     # print para ver predicciones 
+    print_predictions(y_pred)
 
 if __name__ == "__main__":
     main()

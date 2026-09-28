@@ -182,12 +182,12 @@ def get_preprocessed_data():
     joblib.dump(scaled_preprocessor, MODELS_DIR / "scaled_preprocessor.pkl")
 
     # añadimos target y split al conjunto de entrenamiento
-    tree_train_df = pd.DataFrame(X_train_preprocessed, columns=tree_feature_names, index=X_train.index)
-    tree_test_df = pd.DataFrame(X_test_preprocessed, columns=tree_feature_names, index=X_test.index)
+    tree_train_df = pd.DataFrame.sparse.from_spmatrix(X_train_preprocessed, columns=tree_feature_names, index=X_train.index)
+    tree_test_df = pd.DataFrame.sparse.from_spmatrix(X_test_preprocessed, columns=tree_feature_names, index=X_test.index)
 
     # convertimos los datos preprocesados a DataFrame
-    scaled_train_df = pd.DataFrame(X_train_scaled, columns=scaled_feature_names, index=X_train.index)
-    scaled_test_df = pd.DataFrame(X_test_scaled, columns=scaled_feature_names, index=X_test.index)
+    scaled_train_df = pd.DataFrame.sparse.from_spmatrix(X_train_scaled, columns=scaled_feature_names, index=X_train.index)
+    scaled_test_df = pd.DataFrame.sparse.from_spmatrix(X_test_scaled, columns=scaled_feature_names, index=X_test.index)
     
     # añadimos target y split al conjunto de modelos de arbol
     tree_train_df["is_canceled"] = y_train
