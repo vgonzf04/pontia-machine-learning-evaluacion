@@ -14,8 +14,9 @@ from sklearn.preprocessing import (
 DATA_PREDICT_PATH = Path("data/raw/data_predict.csv")
 # ruta de csv para entrenamiento y test
 DATA_RAW_PATH = Path("data/raw/dataset_practica_final.csv")
-# ruta para guaradar dataset preprocesado
-DATA_PROCESSED_PATH = Path("data/processed/dataset_preprocessed.csv")
+# rutas para guardar datasets preprocesados
+TREE_PROCESSED_PATH = Path("data/processed/tree_preprocessed.csv")
+SCALED_PROCESSED_PATH = Path("data/processed/scaled_preprocessed.csv")
 # ruta de modelos y preprocesador
 MODELS_DIR = Path("models/tests")
 
@@ -59,35 +60,57 @@ def preprocessed_and_scaled_for_prediction():
 # preprocesamos dataset
 def get_preprocessed_data():
 
-    # comprobamos si existe el archivo de datos preprocesados
-    if DATA_PROCESSED_PATH.exists():
-        # si existe lo leemos
-        df_preprocessed = pd.read_csv(DATA_PROCESSED_PATH)
+    # comprobamos si existen los archivos de datos preprocesados
+    if TREE_PROCESSED_PATH.exists() and SCALED_PROCESSED_PATH.exists():
+        # leemos los datos preprocesados para modelos de arbol
+        tree_df = pd.read_csv(TREE_PROCESSED_PATH)
+
+        # leemos los datos preprocesados y escalados para Logistic Regression y NN
+        scaled_df = pd.read_csv(SCALED_PROCESSED_PATH)
 
         # comprobamos que tenga datos
-        if not df_preprocessed.empty:
-            # caso de tener datos ya preprocesados 
-            # separamos conjunto de entrenamiento 
-            train_df = df_preprocessed[df_preprocessed["split"] == "train"]
+        if not tree_df.empty and not scaled_df.empty:
+            # CASO DE DATOS PREPREPROCESADOS YA GUARDADOS
+            # separamos conjunto de entrenamiento
+            tree_train_df = tree_df[tree_df["split"] == "train"]
+
             # separamos conjunto de test
-            test_df = df_preprocessed[df_preprocessed["split"] == "test"]
+            tree_test_df = tree_df[tree_df["split"] == "test"]
 
-            # separamos en X, y para train
-            X_train_preprocessed = train_df.drop(columns=["is_canceled", "split"])
-            y_train = train_df["is_canceled"]
+            # obtenemos variables independientes de entrenamiento
+            X_train_preprocessed = tree_train_df.drop(columns=["is_canceled", "split"])
 
-            # separamos en X, y para test
-            X_test_preprocessed = test_df.drop(columns=["is_canceled", "split"])
-            y_test = test_df["is_canceled"]
+            # obtenemos variables independientes de test
+            X_test_preprocessed = tree_test_df.drop(columns=["is_canceled", "split"])
 
-            # sacamos feature importance desde el transformer
+            # obtenemos target de entrenamiento y test
+            y_train = tree_train_df["is_canceled"]
+            y_test = tree_test_df["is_canceled"]
+
+
+            # separamos conjunto de entrenamiento
+            scaled_train_df = scaled_df[scaled_df["split"] == "train"]
+
+            # separamos conjunto de test
+            scaled_test_df = scaled_df[scaled_df["split"] == "test"]
+
+            # obtenemos variables independientes escaladas de entrenamiento
+            X_train_scaled = scaled_train_df.drop(columns=["is_canceled", "split"])
+
+            # obtenemos variables independientes escaladas de test
+            X_test_scaled = scaled_test_df.drop(columns=["is_canceled", "split"])
+
+            # cargamos el preprocesador de arboles ya entrenado
             tree_preprocessor = joblib.load(MODELS_DIR / "tree_preprocessor.pkl")
+
+            # recuperamos los nombres de las variables transformadas
             feature_names = tree_preprocessor.get_feature_names_out()
 
-            # devolvemos onjunto de entrenamiento y test preprocesados para modelos scikit-learn
-            return X_train_preprocessed, X_test_preprocessed, y_train, y_test, feature_names
+            # devolvemos todos los conjuntos ya procesados
+            return (X_train_preprocessed, X_test_preprocessed, X_train_scaled, X_test_scaled, y_train, y_test, feature_names)
 
-    # caso de que no haya datos preprocesados guardados
+
+    # CASO DE QUE NO HAYA DATOS PREPROCESADOS YA GUARDADOS
     # leer dataset desde csv
     df = pd.read_csv(DATA_RAW_PATH)
 
@@ -150,31 +173,46 @@ def get_preprocessed_data():
     X_test_scaled = scaled_preprocessor.transform(X_test)
 
 
-    # guardamos nombres
-    feature_names = tree_preprocessor.get_feature_names_out()
+    # obtenemos los nombres de las columnas generadas por cada preprocesador
+    tree_feature_names = tree_preprocessor.get_feature_names_out()
+    scaled_feature_names = scaled_preprocessor.get_feature_names_out()
 
     # guardamos transformadores en disco para mantener sus entrenamientos
     joblib.dump(tree_preprocessor, MODELS_DIR / "tree_preprocessor.pkl")
     joblib.dump(scaled_preprocessor, MODELS_DIR / "scaled_preprocessor.pkl")
 
     # añadimos target y split al conjunto de entrenamiento
-    train_df = X_train_preprocessed.copy()
-    train_df["is_canceled"] = y_train
-    train_df["split"] = "train"
+    tree_train_df = pd.DataFrame(X_train_preprocessed, columns=tree_feature_names, index=X_train.index)
+    tree_test_df = pd.DataFrame(X_test_preprocessed, columns=tree_feature_names, index=X_test.index)
 
-    # añadimos target y split al conjunto de test
-    test_df = X_test_preprocessed.copy()
-    test_df["is_canceled"] = y_test
-    test_df["split"] = "test"
+    # convertimos los datos preprocesados a DataFrame
+    scaled_train_df = pd.DataFrame(X_train_scaled, columns=scaled_feature_names, index=X_train.index)
+    scaled_test_df = pd.DataFrame(X_test_scaled, columns=scaled_feature_names, index=X_test.index)
+    
+    # añadimos target y split al conjunto de modelos de arbol
+    tree_train_df["is_canceled"] = y_train
+    tree_train_df["split"] = "train"
+    tree_test_df["is_canceled"] = y_test
+    tree_test_df["split"] = "test"
 
-    # juntamos ambos datasets
-    sklearn_df = pd.concat([train_df, test_df])
+    # añadimos target y split al conjunto de los modelos de regresion y red neuronal
+    scaled_train_df["is_canceled"] = y_train
+    scaled_train_df["split"] = "train"
+    scaled_test_df["is_canceled"] = y_test
+    scaled_test_df["split"] = "test"
+    
+    # juntamos train y test preprocesados para modelos de arbol en un unico DataFrame
+    tree_df = pd.concat([tree_train_df, tree_test_df])
+    # juntamos train y test preprocesados y escalados en un unico DataFrame
+    scaled_df = pd.concat([scaled_train_df, scaled_test_df])
+    
+    # comprobamos que exista directorio y si no lo creamos
+    TREE_PROCESSED_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    # comprobamos que existe el directorio 
-    DATA_PROCESSED_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    # guardamos csv sin indices
-    sklearn_df.to_csv(DATA_PROCESSED_PATH, index=False)
+    # guardamos los datos preprocesados en CSVs distintos
+    # index=False evita guardar el indice del DataFrame como una columna adicional
+    tree_df.to_csv(TREE_PROCESSED_PATH, index=False)
+    scaled_df.to_csv(SCALED_PROCESSED_PATH, index=False)
 
     # devolvemos conjunto de entrenamiento y test
-    return X_train_preprocessed, X_test_preprocessed, X_train_scaled, X_test_scaled, y_train, y_test, feature_names
+    return X_train_preprocessed, X_test_preprocessed, X_train_scaled, X_test_scaled, y_train, y_test, tree_feature_names
