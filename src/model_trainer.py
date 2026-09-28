@@ -17,6 +17,7 @@ from feature_importance import (
     create_feature_importance_table,
     plot_feature_importance
 )
+from output_manager import save_figure, save_table
 from predictor import NN_THRESHOLD
 
 # rutas para guardar modelos
@@ -24,6 +25,8 @@ MODELS_DIR = Path("models/tests")
 BEST_MODEL_DIR = Path("models")
 # ruta para guardar info del mejor modelo
 METADATA_PATH = Path("models/best_model_metadata.json")
+# ruta para guardar tablas y graficas de evaluacion
+OUTPUTS_DIR = Path("outputs")
 
 # funcion para crear modelos (desde models.py) y entrenarlos
 def create_train_sklearn_models(X_train_preprocessed, y_train):
@@ -105,6 +108,7 @@ def main():
     comparison_table = create_model_comparison_table(results)
     print("\nTabla comparativa de modelos:")
     print(comparison_table)
+    save_table(comparison_table, OUTPUTS_DIR / "model_comparison.csv")
 
     # sacamos predicciones de conjunto test de cada modelo
     y_pred_lr = lr_model.predict(X_test_scaled)
@@ -116,12 +120,21 @@ def main():
     y_score_nn = nn_model.predict(X_test_scaled,verbose=0).reshape(-1)
     y_pred_nn = (y_score_nn > NN_THRESHOLD).astype(int)
 
-    # matrices de confusion
-    plot_confusion_matrix(y_test, y_pred_lr, "Logistic Regression")
-    plot_confusion_matrix(y_test, y_pred_dt, "Decision Tree")
-    plot_confusion_matrix(y_test, y_pred_rf, "Random Forest")
-    plot_confusion_matrix(y_test, y_pred_xgb, "XGBoost")
-    plot_confusion_matrix(y_test, y_pred_nn, "Neural Network")
+    # matrices de confusion y sus nombres de salida
+    predictions_by_model = {
+        "logistic_regression": ("Logistic Regression", y_pred_lr),
+        "decision_tree": ("Decision Tree", y_pred_dt),
+        "random_forest": ("Random Forest", y_pred_rf),
+        "xgboost": ("XGBoost", y_pred_xgb),
+        "neural_network": ("Neural Network", y_pred_nn),
+    }
+
+    for model_key, (model_name, y_pred) in predictions_by_model.items():
+        display = plot_confusion_matrix(y_test, y_pred, model_name)
+        save_figure(
+            display.figure_,
+            OUTPUTS_DIR / "confusion_matrices" / f"{model_key}.png",
+        )
 
 
     # sacamos probabilidades de conjunto de test de cada modelo
@@ -130,23 +143,32 @@ def main():
     y_score_rf = rf_model.predict_proba(X_test_preprocessed)[:, 1]
     y_score_xgb = xgb_model.predict_proba(X_test_preprocessed)[:, 1]
 
-    # ROC individuales
-    plot_roc_curve(y_test, y_score_lr, "Logistic Regression")
-    plot_roc_curve(y_test, y_score_dt, "Decision Tree")
-    plot_roc_curve(y_test, y_score_rf, "Random Forest")
-    plot_roc_curve(y_test, y_score_xgb, "XGBoost")
-    plot_roc_curve(y_test, y_score_nn, "Neural Network")
-
     # ROC comparativa
     scores_by_model = {
-        "logistic_regression": y_score_lr,
-        "decision_tree": y_score_dt,
-        "random_forest": y_score_rf,
-        "xgboost": y_score_xgb,
-        "neural_network": y_score_nn
+        "logistic_regression": ("Logistic Regression", y_score_lr),
+        "decision_tree": ("Decision Tree", y_score_dt),
+        "random_forest": ("Random Forest", y_score_rf),
+        "xgboost": ("XGBoost", y_score_xgb),
+        "neural_network": ("Neural Network", y_score_nn),
     }
 
-    plot_comparative_roc_curve(y_test, scores_by_model)
+    # curvas ROC individuales
+    for model_key, (model_name, y_score) in scores_by_model.items():
+        display = plot_roc_curve(y_test, y_score, model_name)
+        save_figure(
+            display.figure_,
+            OUTPUTS_DIR / "roc_curves" / f"{model_key}.png",
+        )
+
+    comparative_scores = {
+        model_name: y_score
+        for model_name, y_score in scores_by_model.values()
+    }
+    comparative_figure, _, _ = plot_comparative_roc_curve(
+        y_test,
+        comparative_scores,
+    )
+    save_figure(comparative_figure, OUTPUTS_DIR / "comparative_roc.png")
 
 
     ### FEATURE IMPORTANCE 
@@ -159,19 +181,37 @@ def main():
         xgb_model,
         feature_names
     )
+
+    save_table(
+        rf_feature_importance,
+        OUTPUTS_DIR / "feature_importance" / "random_forest.csv",
+    )
+    save_table(
+        xgb_feature_importance,
+        OUTPUTS_DIR / "feature_importance" / "xgboost.csv",
+    )
     
-    plot_feature_importance(
+    rf_importance_axis = plot_feature_importance(
         rf_model,
         feature_names,
         model_name="Random Forest",
         top_n=20
     )
     
-    plot_feature_importance(
+    xgb_importance_axis = plot_feature_importance(
         xgb_model,
         feature_names,
         model_name="XGBoost",
         top_n=20
+    )
+
+    save_figure(
+        rf_importance_axis.figure,
+        OUTPUTS_DIR / "feature_importance" / "random_forest.png",
+    )
+    save_figure(
+        xgb_importance_axis.figure,
+        OUTPUTS_DIR / "feature_importance" / "xgboost.png",
     )
 
     # diccionario nombre_modelo: modelos
