@@ -2,11 +2,7 @@
 
 FALTA:
 - Definición de los roles de la pareja (quién hace qué)
-- Justificación del problema
-- Análisis exploratorio de datos
-- Diseño del sistema
 - Resultados y elección final
-- Reflexión crítica sobre limitaciones y mejoras
 
 ## JUSTIFICACIÓN DEL PROBLEMA 
 
@@ -129,6 +125,10 @@ La explicación detallada de Random Forest, XGBoost, la comparación común y
 feature importance está disponible en
 [Documentación de modelos ensemble](docs/ensemble_models.md).
 
+### 7. `output_manager.py`
+
+Encargado de guardar los gráficos, tablas, matrices de confusión.
+
 ## ANÁLSIS EXPLORATORIO DE DATOS (EDA)
 
 Tras hacer el análisis vemos que tenemos datos sobre hoteles y reservas y queremos crear un modelo que pueda predecir qué reservas pueden ser canceladas. El tarjet es la columna `is_canceled`.
@@ -143,6 +143,25 @@ El análisis del dataset desembocó en la eliminación de las siguientes columna
 <img src="docs/isnull.png" alt="Valores nulos" width="400">
 
 
+Tras eliminar las columnas mencionadas, pasamos al siguiente paso que es el preprocesamiento de los datos para que los modelos trabajen mejor según el caso. 
+
+Agrupamos el preprocesamiento en dos grupos:
+
+1. *tree_preprocessor:* preprocesador que imputa valores numéricos y categóricos y codifica los valores categóricos para los modelos:
+    - DecissionTreeClassifier
+    - RandomForestClassifier
+    - XGBClassifier
+
+2. *scaled_preprocessor:* preprocesador hace lo mismo que el anterior pero añade el escalado de los valores numéricos, utilizado para modelos:
+    - LogisticRegression
+    - Neural network
+
+Aplicamos escalado en estos porque son sensibles a la magnitud de las variables y entrenan mejor cuando están en escalas similares, mientras que los modelos que utilizan *tree_preprocessor* dividen los datos por umbrales y no dependen de la escala de las características.
+
+Para escalar los valores numéricos se utiliza el método de *StandardScaler* porque normaliza las variables numéricas para que estén en escalas comparables. 
+
+En el caso de la codificación se utilza *OneHotEncoder* porque transforma las variables categóricas en columnas numéricas sin introducir un orden artificial entre sus categorías.
+
 ### MÉTRICA DE SELECCIÓN DEL MEJOR MODELO
 
 El flujo actual de `model_trainer.py` utiliza provisionalmente el **F1-score de
@@ -156,3 +175,9 @@ Como métricas complementarias se analizan también accuracy, precision, recall 
 La métrica principal y el modelo ganador solo se considerarán definitivos
 cuando estén disponibles todos los modelos, el preprocesamiento común y sus
 resultados sobre el mismo conjunto de test.
+
+### LIMITACIONES Y POSIBLES MEJORAS
+
+Como principales limitaciones, el proyecto depende de la calidad y representatividad del dataset utilizado, por lo que el rendimiento obtenido puede no trasladarse directamente a reservas reales de otros hoteles o periodos distintos. 
+
+Como mejoras futuras, el sistema podría integrarse en una API o aplicación web, automatizar el reentrenamiento con nuevos datos, añadir herramientas de interpretabilidad como SHAP, que ayuda a entender porque un modelo ha tomar una decisión determinada, y establecer un proceso de monitorización para detectar pérdida de rendimiento del modelo con el tiempo. También podría mejorarse la evaluación del modelo probándolo sobre distintas particiones de los datos, analizando cómo cambia el comportamiento de las reservas con el tiempo y teniendo en cuenta el coste económico de los distintos tipos de error.
