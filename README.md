@@ -162,7 +162,7 @@ Para escalar los valores numéricos se utiliza el método de *StandardScaler* po
 
 En el caso de la codificación se utilza *OneHotEncoder* porque transforma las variables categóricas en columnas numéricas sin introducir un orden artificial entre sus categorías.
 
-### MÉTRICA DE SELECCIÓN DEL MEJOR MODELO
+## MÉTRICA DE SELECCIÓN DEL MEJOR MODELO
 
 El flujo actual de `model_trainer.py` utiliza provisionalmente el **F1-score de
 la clase positiva (`is_canceled = 1`)**. La utilidad de selección implementada
@@ -176,7 +176,7 @@ La métrica principal y el modelo ganador solo se considerarán definitivos
 cuando estén disponibles todos los modelos, el preprocesamiento común y sus
 resultados sobre el mismo conjunto de test.
 
-### LIMITACIONES Y POSIBLES MEJORAS
+## LIMITACIONES Y POSIBLES MEJORAS
 
 Como principales limitaciones, el proyecto depende de la calidad y representatividad del dataset utilizado, por lo que el rendimiento obtenido puede no trasladarse directamente a reservas reales de otros hoteles o periodos distintos. 
 
