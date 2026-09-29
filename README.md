@@ -1,8 +1,9 @@
 # DOCUMENTACIÓN DEL SISTEMA
 
-FALTA:
-- Definición de los roles de la pareja (quién hace qué)
-- Resultados y elección final
+## ROLES DEL GRUPO 
+
+El trabajo se ha divido equitativamente entre los 3 integrantes del grupo, para el reparto hemos decidido que cada uno tocara un poco de todo. Por tanto, todos hemos trasteado y creado algún modelo, todos hemos trabajado con el dataset para decidir como hacerlo lo más óptimo posible. 
+
 
 ## JUSTIFICACIÓN DEL PROBLEMA 
 
@@ -175,6 +176,100 @@ Como métricas complementarias se analizan también accuracy, precision, recall 
 La métrica principal y el modelo ganador solo se considerarán definitivos
 cuando estén disponibles todos los modelos, el preprocesamiento común y sus
 resultados sobre el mismo conjunto de test.
+
+## RESULTADOS OBTENIDOS
+
+Tras entrenar y evaluar los cinco modelos, se obtuvieron los siguientes resultados:
+
+| Modelo | Accuracy | Precision | Recall | F1-score | ROC-AUC |
+|---|---:|---:|---:|---:|---:|
+| Logistic Regression | 0.819 | 0.813 | 0.665 | 0.731 | 0.896 |
+| Decision Tree | 0.865 | 0.823 | 0.811 | 0.817 | 0.910 |
+| Random Forest | 0.894 | 0.896 | 0.809 | 0.850 | 0.958 |
+| XGBoost | 0.870 | 0.864 | 0.769 | 0.814 | 0.945 |
+| Neural Network | 0.862 | 0.808 | 0.823 | 0.815 | 0.939 |
+
+En términos generales, todos los modelos presentan un rendimiento satisfactorio, aunque existen diferencias relevantes entre ellos. **Random Forest obtiene los mejores resultados globales**, con el mayor `Accuracy`, `Precision`, `F1-score` y `ROC-AUC`, alcanzando un F1 de aproximadamente **0.85** y un ROC-AUC de **0.958**.
+
+La **red neuronal** presenta el mayor `Recall` de todos los modelos, con un valor cercano a **0.823**, lo que indica una buena capacidad para detectar reservas que finalmente se cancelan. Por su parte, **Logistic Regression** es el modelo con menor rendimiento, especialmente en `Recall` y `F1-score`.
+
+De acuerdo con el criterio definido para el proyecto, basado principalmente en el **F1-score**, el modelo seleccionado finalmente es **Random Forest**.
+
+### Comparación de curvas ROC
+
+La siguiente gráfica permite comparar directamente la capacidad de discriminación de todos los modelos:
+
+![Comparación de curvas ROC](outputs/comparative_roc.png)
+
+### Matrices de confusión
+
+Las matrices de confusión permiten observar los aciertos y errores de clasificación de cada modelo.
+
+#### Logistic Regression
+
+![Matriz de confusión - Logistic Regression](outputs/confusion_matrices/logistic_regression.png)
+
+#### Decision Tree
+
+![Matriz de confusión - Decision Tree](outputs/confusion_matrices/decision_tree.png)
+
+#### Random Forest
+
+![Matriz de confusión - Random Forest](outputs/confusion_matrices/random_forest.png)
+
+#### XGBoost
+
+![Matriz de confusión - XGBoost](outputs/confusion_matrices/xgboost.png)
+
+#### Neural Network
+
+![Matriz de confusión - Neural Network](outputs/confusion_matrices/neural_network.png)
+
+### Curvas ROC individuales
+
+#### Logistic Regression
+
+![Curva ROC - Logistic Regression](outputs/roc_curves/logistic_regression.png)
+
+#### Decision Tree
+
+![Curva ROC - Decision Tree](outputs/roc_curves/decision_tree.png)
+
+#### Random Forest
+
+![Curva ROC - Random Forest](outputs/roc_curves/random_forest.png)
+
+#### XGBoost
+
+![Curva ROC - XGBoost](outputs/roc_curves/xgboost.png)
+
+#### Neural Network
+
+![Curva ROC - Neural Network](outputs/roc_curves/neural_network.png)
+
+### Importancia de características
+
+Para los modelos que permiten analizar la importancia de las variables, se han generado las siguientes gráficas.
+
+#### Random Forest
+
+![Importancia de características - Random Forest](outputs/feature_importance/random_forest.png)
+
+En Random Forest, algunas de las variables con mayor influencia son `lead_time`, `adr`, el país de origen, el tipo de depósito y el número de peticiones especiales.
+
+#### XGBoost
+
+![Importancia de características - XGBoost](outputs/feature_importance/xgboost.png)
+
+En XGBoost destaca especialmente la variable relacionada con los depósitos no reembolsables (`deposit_type_Non Refund`), seguida del segmento de mercado, las plazas de aparcamiento solicitadas y el país de origen.
+
+### Resultados de predicción
+
+Una vez seleccionado y cargado el mejor modelo, `predictor.py` realiza predicciones sobre nuevas reservas y muestra el resultado por consola.
+
+En el ejemplo mostrado se procesaron 5 reservas con datos inventados, de las cuales **4 fueron clasificadas como no canceladas** y **1 como cancelada**. Este resultado demuestra el funcionamiento completo del pipeline de inferencia, desde la carga de los nuevos datos hasta la obtención de la predicción final.
+
+![Resultados de las predicciones](docs/print_predictor_ml.png)
 
 ## LIMITACIONES Y POSIBLES MEJORAS
 

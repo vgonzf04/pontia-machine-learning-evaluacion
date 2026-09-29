@@ -2,3 +2,5 @@
 *env-pontia-ml
 *.ipynb_checkpoints
 *__pycache__*
+data/processed/*.csv
+models/*.pkl
