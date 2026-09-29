@@ -1,12 +1,14 @@
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
 from tensorflow.keras import layers, models
 from xgboost import XGBClassifier
 
 def create_logistic_regression_model():
-    return ;
+    return LogisticRegression(C=1, max_iter=100, solver='liblinear')
     
 def create_decision_tree_model():
-    return ;
+    return DecisionTreeClassifier(criterion='gini', max_depth=20, min_samples_leaf=1, min_samples_split=2)
     
 def create_random_forest_model():
     """Crea un Random Forest base, reproducible y sin balanceo artificial."""
