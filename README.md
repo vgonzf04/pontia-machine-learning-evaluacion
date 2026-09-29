@@ -32,8 +32,14 @@ Crea un entorno virtual para aislar las dependencias del proyecto.
 
 ### 2. Activar entorno virtual
 
+LINUX / MAC
 ```bash
 source .venv/bin/activate
+```
+
+WINDOWS
+```Power-Shell
+.venv/scripts/activate.ps1    
 ```
 
 Activa el entorno virtual creado con `uv`.
@@ -42,6 +48,12 @@ Activa el entorno virtual creado con `uv`.
 
 ```bash
 uv pip install -r requirements.txt
+```
+
+Nota para Windows (si el proyecto está en una unidad distinta a la del SO):
+usa el script para guardar la caché de uv en la misma unidad desde la que ejecutas el proyecto.
+```powershell
+.\uv-sync.ps1 requeriments.txt
 ```
 
 Instala todas las dependencias necesarias definidas en el archivo `requirements.txt`.
